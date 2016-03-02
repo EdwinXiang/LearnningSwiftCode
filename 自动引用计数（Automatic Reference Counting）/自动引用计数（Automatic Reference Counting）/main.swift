@@ -190,7 +190,7 @@ class Country {
 }
 class City {
     let name:String
-    unowned let country:Country
+    unowned let country:Country //无主类型
     init(name:String,country:Country){
         self.name = name
         self.country = country
@@ -202,3 +202,44 @@ print("\(country.name)'s capital is called \(country.capitalCity.name)")
 
 
 //闭包引起的循环强引用
+/*循环强引用还会发生在当你将一个闭包赋值给类实例的某个属性，并且这个闭包体中又使用了这个类实例时。这个闭包体中可能访问了实例的某个属性，例如self.someProperty，或者闭包中调用了实例的某个方法，例如self.someMethod()。这两种情况都导致了闭包“捕获”self，从而产生了循环强引用。
+
+循环强引用的产生，是因为闭包和类相似，都是引用类型。当你把一个闭包赋值给某个属性时，你是将这个闭包的引用赋值给了属性。实质上，这跟之前的问题是一样的——两个强引用让彼此一直有效。但是，和两个类实例不同，这次一个是类实例，另一个是闭包。
+
+Swift 提供了一种优雅的方法来解决这个问题，称之为闭包捕获列表（closure capture list）。同样的，在学习如何用闭包捕获列表打破循环强引用之前，先来了解一下这里的循环强引用是如何产生的，这对我们很有帮助。
+*/
+class HTMLElement {
+    let name:String
+    let text:String?
+    
+    lazy var asHTML:Void -> String = {
+        [unowned self] in //解决闭包引起的循环强引用 一个捕获列表。这里，捕获列表是[unowned self]，表示“将self捕获为无主引用而不是强引用”。
+        if let text = self.text {
+            return"<\(self.name)>\(text)</\(self.name)>"
+        } else {
+            return"<\(self.name)/>"
+        }
+    }
+    
+    init(name:String,text:String? = nil) {
+        self.name = name
+        self.text = text
+    }
+    deinit {
+        print("\(name) is being deinitialized")
+    }
+}
+let heading = HTMLElement(name: "H1")
+let defaultText = "some default text"
+heading.asHTML = {
+    return "<\(heading.name)>\(heading.text ?? defaultText)</\(heading.name)>"
+}
+print(heading.asHTML())
+//asHTML声明为lazy属性，因为只有当元素确实需要被处理为 HTML 输出的字符串时，才需要使用asHTML。也就是说，在默认的闭包中可以使用self，因为只有当初始化完成以及self确实存在后，才能访问lazy属性。
+var pareagraph:HTMLElement? = HTMLElement(name: "p", text: "hello,world")
+print(pareagraph?.asHTML())
+//如果设置paragraph变量为nil，打破它持有的HTMLElement实例的强引用，HTMLElement实例和它的闭包都不会被销毁，也是因为循环强引用：
+pareagraph = nil
+
+//解决闭包引起的循环强引用
+//在定义闭包时同时定义捕获列表作为闭包的一部分，通过这种方式可以解决闭包和类实例之间的循环强引用。捕获列表定义了闭包体内捕获一个或者多个引用类型的规则。跟解决两个类实例间的循环强引用一样，声明每个捕获的引用为弱引用或无主引用，而不是强引用。应当根据代码关系来决定使用弱引用还是无主引用。
